@@ -1,37 +1,108 @@
-name: CI Build
+name: Fullstack CI Pipeline
 
-# Controls when the workflow will run
 on:
   push:
     branches:
-      - main   # Trigger the workflow on pushes to the main branch
+      - main   # Trigger on push to the main branch
   pull_request:
     branches:
       - main   # Trigger on pull requests to the main branch
 
-# A job defines the steps that will run in the workflow
 jobs:
-  build:
-    runs-on: ubuntu-latest   # Use the latest version of Ubuntu as the build environment
+  setup:
+    name: Setup environment
+    runs-on: ubuntu-latest
+
+    services:
+      # Set up Postgres service for database operations
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: mydb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      
+      # Set up Minio for object storage
+      minio:
+        image: minio/minio
+        command: server /data
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin123
+
+      # Set up browserless for headless Chrome
+      browserless:
+        image: browserless/chrome:1.53-chrome-stable
+        ports:
+          - 3000:3000
 
     steps:
       # Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up the required programming language environment (e.g., Node.js)
+      # Set up Node.js for frontend and backend
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18' # Use Node.js version 18, adjust as needed
 
-      # Install dependencies and build the project (e.g., npm install and npm run build)
-      - name: Install dependencies
+      # Install dependencies for the backend (NestJS)
+      - name: Install backend dependencies
+        working-directory: ./backend
         run: npm install
 
-      - name: Build project
+      # Install Prisma CLI for migrations
+      - name: Install Prisma CLI
+        working-directory: ./backend
+        run: npm install prisma --save-dev
+
+      # Run Prisma migrations
+      - name: Run Prisma migrations
+        working-directory: ./backend
+        run: npx prisma migrate deploy
+
+      # Run backend tests
+      - name: Run backend tests
+        working-directory: ./backend
+        run: npm test
+
+      # Install dependencies for the frontend (React with Vite)
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+
+      # Build frontend (React with Vite)
+      - name: Build frontend
+        working-directory: ./frontend
         run: npm run build
 
-      # Optionally run tests if you have them
-      - name: Run tests
+      # Optionally run frontend tests (if you have them)
+      - name: Run frontend tests
+        working-directory: ./frontend
         run: npm test
+
+      # Set up environment variables for OAuth and SMTP server
+      - name: Set up environment variables
+        run: |
+          echo "SMTP_SERVER=your-smtp-server" >> $GITHUB_ENV
+          echo "GITHUB_CLIENT_ID=your-github-client-id" >> $GITHUB_ENV
+          echo "GITHUB_CLIENT_SECRET=your-github-client-secret" >> $GITHUB_ENV
+          echo "GOOGLE_CLIENT_ID=your-google-client-id" >> $GITHUB_ENV
+          echo "GOOGLE_CLIENT_SECRET=your-google-client-secret" >> $GITHUB_ENV
+
+      # Upload artifacts (optional, if needed)
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: ./frontend/dist
