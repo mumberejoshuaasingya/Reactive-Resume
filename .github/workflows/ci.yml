@@ -1,0 +1,37 @@
+name: CI Build
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - main   # Trigger the workflow on pushes to the main branch
+  pull_request:
+    branches:
+      - main   # Trigger on pull requests to the main branch
+
+# A job defines the steps that will run in the workflow
+jobs:
+  build:
+    runs-on: ubuntu-latest   # Use the latest version of Ubuntu as the build environment
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up the required programming language environment (e.g., Node.js)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # Install dependencies and build the project (e.g., npm install and npm run build)
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      # Optionally run tests if you have them
+      - name: Run tests
+        run: npm test
